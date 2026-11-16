@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\Categorie;
@@ -25,11 +26,11 @@ class DatabaseSeeder extends Seeder
             for ($i = 1; $i <= 3; $i++) {
                 Produit::create([
                     'categorie_id' => $cat->id,
-                    'nom' => $cat->nom . ' Modèle ' . $i,
+                    'nom' => $cat->nom.' Modèle '.$i,
                     'description' => 'Produit de sport de qualité.',
                     'prix' => rand(10, 120) + 0.99,
                     'stock' => rand(5, 50),
-                    'image' => 'https://placehold.co/400x400?text=' . urlencode($cat->nom),
+                    'image' => 'https://placehold.co/400x400?text='.urlencode($cat->nom),
                 ]);
             }
         }

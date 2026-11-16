@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -6,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Produit extends Model
 {
     protected $table = 'produits';
+
     protected $fillable = ['categorie_id', 'nom', 'description', 'prix', 'prix_promo', 'stock', 'image'];
 
     public function categorie()
@@ -15,7 +17,7 @@ class Produit extends Model
 
     public function avis()
     {
-        return $this->hasMany(\App\Models\Avis::class);
+        return $this->hasMany(Avis::class);
     }
 
     /**
@@ -24,6 +26,7 @@ class Produit extends Model
     public function getMoyenneNotesAttribute(): ?float
     {
         $avg = $this->avis()->avg('note');
+
         return $avg !== null ? round((float) $avg, 1) : null;
     }
 }

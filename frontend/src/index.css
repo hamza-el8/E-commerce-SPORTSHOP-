@@ -7295,3 +7295,49 @@ main {
 .admin-avis-notif-banner__dismiss:hover {
   background: rgba(0,0,0,0.12);
 }
+
+/* ── Payment method selector ── */
+.checkout-payment { margin: 18px 0; }
+.checkout-payment__options { display: flex; gap: 12px; margin-top: 8px; }
+.checkout-payment__option {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px;
+  cursor: pointer; transition: border-color .15s, background .15s; font-weight: 500;
+}
+.checkout-payment__option:hover { border-color: #93c5fd; }
+.checkout-payment__option.active { border-color: #3b82f6; background: #eff6ff; }
+.checkout-payment__option input { accent-color: #3b82f6; }
+.checkout-card-form { margin-top: 14px; padding: 14px; background: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb; }
+.checkout-form__hint { font-size: 12px; color: #6b7280; margin-top: 8px; font-style: italic; }
+
+/* ── Payment receipt ── */
+.checkout-receipt {
+  margin: 24px auto; max-width: 460px; text-align: left;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+  padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.checkout-receipt__title { font-size: 16px; font-weight: 700; margin: 0 0 12px; text-align: center; }
+.checkout-receipt__row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; gap: 12px; }
+.checkout-receipt__row--total { font-weight: 700; font-size: 15px; border-top: 1px solid #e5e7eb; margin-top: 6px; padding-top: 10px; }
+.checkout-receipt__divider { height: 1px; background: #e5e7eb; margin: 8px 0; }
+.checkout-receipt__items { padding: 4px 0; }
+.checkout-receipt__item { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #374151; }
+.checkout-btn--secondary { background: #fff; color: #3b82f6; border: 2px solid #3b82f6; }
+.checkout-btn--secondary:hover { background: #eff6ff; }
+
+/* ── Admin payment info ── */
+.admin-order-card__payment { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e5e7eb; font-size: 12px; }
+.admin-order-card__payment-method { font-weight: 600; }
+.admin-order-card__payment-status { padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+.admin-order-card__payment-status--paye { background: #dcfce7; color: #166534; }
+.admin-order-card__payment-status--en_attente { background: #fef9c3; color: #854d0e; }
+.admin-order-card__payment-status--rembourse { background: #fee2e2; color: #991b1b; }
+.admin-order-card__payment-status--echoue { background: #fee2e2; color: #991b1b; }
+.admin-order-card__payment-txn { font-family: monospace; color: #6b7280; }
+
+/* print */
+@media print {
+  body * { visibility: hidden; }
+  #payment-receipt, #payment-receipt * { visibility: visible; }
+  #payment-receipt { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; border: none; }
+}

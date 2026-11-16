@@ -7,7 +7,7 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "../api.js";
 import { translateCategory, useLanguage } from "../language.js";
-import OrderChat, { unreadCount as chatUnreadCount, getChatMessages } from "../components/OrderChat.jsx";
+import OrderChat, { unreadCount as chatUnreadCount } from "../components/OrderChat.jsx";
 
 /* ── Error Boundary pour déboguer les crashs runtime ── */
 import { Component } from "react";
@@ -220,7 +220,7 @@ export default function Admin() {
     }
   };
 
-  /* ─── Commandes (localStorage) ─── */
+  /* ─── Commandes (API) ─── */
   const [orders, setOrders] = useState([]);
 
   /* ─── Chat : quel orderId est ouvert + badge non-lus ─── */
@@ -230,16 +230,15 @@ export default function Admin() {
   /* Recalcule les badges non-lus de tous les chats (admin) */
   const refreshChatUnreads = useCallback(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem("sportshop_orders") || "[]");
       const counts = {};
-      (Array.isArray(stored) ? stored : []).forEach((o) => {
+      orders.forEach((o) => {
         try { counts[o.id] = chatUnreadCount(o.id, "admin"); } catch { counts[o.id] = 0; }
       });
       setChatUnreads(counts);
     } catch {
       setChatUnreads({});
     }
-  }, []);
+  }, [orders]);
 
   /* Polling badge chat toutes les 3s */
   useEffect(() => {
@@ -248,20 +247,27 @@ export default function Admin() {
     return () => clearInterval(interval);
   }, [refreshChatUnreads]);
 
-  const loadOrders = () => {
+  const loadOrders = async () => {
     try {
-      const stored = JSON.parse(localStorage.getItem("sportshop_orders") || "[]");
-      // Filtre les commandes invalides (sans id ou sans items array)
-      const valid = (Array.isArray(stored) ? stored : []).filter(
-        (o) => o && typeof o === "object" && o.id && Array.isArray(o.items)
-      );
-      // Nettoie les clés chat corrompues
-      valid.forEach((o) => {
-        const key = `sportshop_chat_${o.id}`;
-        try { JSON.parse(localStorage.getItem(key) || "[]"); }
-        catch { localStorage.removeItem(key); }
-      });
-      setOrders(valid);
+      const res = await api.get("/admin/commandes");
+      const read = new Set(JSON.parse(localStorage.getItem("sportshop_orders_read") || "[]"));
+      const mapped = (Array.isArray(res.data) ? res.data : []).map((o) => ({
+        id: o.id,
+        numero: o.numero,
+        client: `${o.prenom} ${o.nom}`,
+        telephone: o.telephone,
+        adresse: o.adresse,
+        items: (o.items || []).map((i) => ({ nom: i.nom, quantite: i.quantite, prix: i.prix })),
+        total: o.total,
+        livraison: o.livraison,
+        statut: o.statut,
+        mode_paiement: o.mode_paiement,
+        statut_paiement: o.statut_paiement,
+        transaction_id: o.transaction_id,
+        date: o.created_at,
+        read: read.has(o.id),
+      }));
+      setOrders(mapped);
     } catch {
       setOrders([]);
     }
@@ -270,50 +276,67 @@ export default function Admin() {
   const unreadCount = orders.filter((o) => !o.read).length;
 
   const markAllRead = () => {
-    const updated = orders.map((o) => ({ ...o, read: true }));
-    localStorage.setItem("sportshop_orders", JSON.stringify(updated));
-    setOrders(updated);
+    const set = new Set(JSON.parse(localStorage.getItem("sportshop_orders_read") || "[]"));
+    orders.forEach((o) => set.add(o.id));
+    localStorage.setItem("sportshop_orders_read", JSON.stringify([...set]));
+    setOrders(orders.map((o) => ({ ...o, read: true })));
   };
 
-  const updateOrderStatus = (id, statut) => {
-    const updated = orders.map((o) => o.id === id ? { ...o, statut } : o);
-    localStorage.setItem("sportshop_orders", JSON.stringify(updated));
-    setOrders(updated);
+  const updateOrderStatus = async (id, statut) => {
+    try {
+      const res = await api.put(`/admin/commandes/${id}/statut`, { statut });
+      const updatedCmd = res.data;
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === id
+            ? { ...o, statut: updatedCmd.statut, statut_paiement: updatedCmd.statut_paiement, transaction_id: updatedCmd.transaction_id }
+            : o
+        )
+      );
 
-    /* ── Notifier le client ── */
-    const order = orders.find((o) => o.id === id);
-    if (!order) return;
+      /* ── Notifier le client ── */
+      const order = orders.find((o) => o.id === id);
+      if (!order) return;
 
-    const statutMessages = {
-      en_attente: { fr: "En attente de traitement",   en: "Pending processing" },
-      confirmee:  { fr: "Confirmée ✅",                en: "Confirmed ✅" },
-      expediee:   { fr: "Expédiée 🚚",                 en: "Shipped 🚚" },
-      livree:     { fr: "Livrée 🎉",                   en: "Delivered 🎉" },
-      annulee:    { fr: "Annulée ❌",                  en: "Cancelled ❌" },
-    };
+      const statutMessages = {
+        en_attente: { fr: "En attente de traitement",   en: "Pending processing" },
+        confirmee:  { fr: "Confirmée ✅",                en: "Confirmed ✅" },
+        expediee:   { fr: "Expédiée 🚚",                 en: "Shipped 🚚" },
+        livree:     { fr: "Livrée 🎉",                   en: "Delivered 🎉" },
+        annulee:    { fr: "Annulée ❌",                  en: "Cancelled ❌" },
+      };
 
-    const notif = {
-      id:       `notif-${Date.now()}`,
-      orderId:  id,
-      statut,
-      message:  statutMessages[statut] ?? { fr: statut, en: statut },
-      date:     new Date().toISOString(),
-      read:     false,
-      clientId: order.clientId ?? null,   /* pour filtrage futur */
-    };
+      const notif = {
+        id:       `notif-${Date.now()}`,
+        orderId:  order.numero,
+        statut,
+        message:  statutMessages[statut] ?? { fr: statut, en: statut },
+        date:     new Date().toISOString(),
+        read:     false,
+        clientId: null,
+      };
 
-    const existing = JSON.parse(localStorage.getItem("sportshop_client_notifs") || "[]");
-    localStorage.setItem(
-      "sportshop_client_notifs",
-      JSON.stringify([notif, ...existing])
-    );
+      const existing = JSON.parse(localStorage.getItem("sportshop_client_notifs") || "[]");
+      localStorage.setItem(
+        "sportshop_client_notifs",
+        JSON.stringify([notif, ...existing])
+      );
+    } catch (err) {
+      alert(err.response?.data?.message || t("Une erreur est survenue.", "Something went wrong."));
+    }
   };
 
-  const deleteOrder = (id) => {
+  const deleteOrder = async (id) => {
     if (!confirm(t("Supprimer cette commande ?", "Delete this order?"))) return;
-    const updated = orders.filter((o) => o.id !== id);
-    localStorage.setItem("sportshop_orders", JSON.stringify(updated));
-    setOrders(updated);
+    try {
+      await api.delete(`/admin/commandes/${id}`);
+      setOrders((prev) => prev.filter((o) => o.id !== id));
+      const set = new Set(JSON.parse(localStorage.getItem("sportshop_orders_read") || "[]"));
+      set.delete(id);
+      localStorage.setItem("sportshop_orders_read", JSON.stringify([...set]));
+    } catch (err) {
+      alert(err.response?.data?.message || t("Une erreur est survenue.", "Something went wrong."));
+    }
   };
 
   const formatDate = (iso) => {
@@ -865,7 +888,7 @@ export default function Admin() {
 
                     <div className="admin-order-card__top">
                       <div className="admin-order-card__id">
-                        <span className="admin-order-card__num">{order.id}</span>
+                        <span className="admin-order-card__num">{order.numero}</span>
                         <span className="admin-order-card__date">{formatDate(order.date)}</span>
                       </div>
                       <div className="admin-order-card__total">
@@ -902,6 +925,22 @@ export default function Admin() {
                             <span></span>
                             <span>{order.livraison} DH</span>
                           </div>
+                        )}
+                      </div>
+
+                      <div className="admin-order-card__payment">
+                        <span className="admin-order-card__payment-method">
+                          {order.mode_paiement === "card" ? t("💳 Carte", "💳 Card") : t("💵 COD", "💵 COD")}
+                        </span>
+                        <span className={`admin-order-card__payment-status admin-order-card__payment-status--${order.statut_paiement}`}>
+                          {order.statut_paiement === "paye"
+                            ? t("Payé", "Paid")
+                            : order.statut_paiement === "rembourse"
+                            ? t("Remboursé", "Refunded")
+                            : t("En attente", "Pending")}
+                        </span>
+                        {order.transaction_id && (
+                          <span className="admin-order-card__payment-txn">{order.transaction_id}</span>
                         )}
                       </div>
                     </div>

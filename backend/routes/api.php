@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AvisController;
 use App\Http\Controllers\CategorieController;
+use App\Http\Controllers\CommandeController;
 use App\Http\Controllers\FavoriController;
 use App\Http\Controllers\PanierController;
 use App\Http\Controllers\ProduitController;
@@ -16,7 +17,7 @@ Route::get('/produits/{produit}', [ProduitController::class, 'show']);
 Route::get('/produits/{produit}/avis', [AvisController::class, 'index']);
 Route::get('/categories', [CategorieController::class, 'index']);
 
-// Connecté
+// Connecte
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
@@ -34,6 +35,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/produits/{produit}/avis', [AvisController::class, 'store']);
     Route::delete('/avis/{avis}', [AvisController::class, 'destroy']);
 
+    // Commandes client
+    Route::get('/commandes', [CommandeController::class, 'index']);
+    Route::post('/commandes', [CommandeController::class, 'store']);
+    Route::get('/commandes/{commande}', [CommandeController::class, 'show']);
+
     // Admin
     Route::middleware('admin')->group(function () {
         Route::get('/admin/avis', [AvisController::class, 'adminIndex']);
@@ -45,5 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/categories', [CategorieController::class, 'store']);
         Route::put('/categories/{categorie}', [CategorieController::class, 'update']);
         Route::delete('/categories/{categorie}', [CategorieController::class, 'destroy']);
+
+        Route::get('/admin/commandes', [CommandeController::class, 'adminIndex']);
+        Route::put('/admin/commandes/{commande}/statut', [CommandeController::class, 'updateStatut']);
+        Route::delete('/admin/commandes/{commande}', [CommandeController::class, 'destroy']);
     });
 });

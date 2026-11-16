@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -6,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PanierItem extends Model
 {
     protected $table = 'panier_items';
+
     protected $fillable = ['panier_id', 'produit_id', 'quantite', 'prix'];
 
     public function panier()

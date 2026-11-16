@@ -29,17 +29,17 @@ class AvisController extends Controller
     public function store(Request $request, Produit $produit)
     {
         $data = $request->validate([
-            'note'        => 'required|integer|min:1|max:5',
+            'note' => 'required|integer|min:1|max:5',
             'commentaire' => 'nullable|string|max:1000',
         ]);
 
         $avis = Avis::updateOrCreate(
             [
-                'user_id'    => $request->user()->id,
+                'user_id' => $request->user()->id,
                 'produit_id' => $produit->id,
             ],
             [
-                'note'        => $data['note'],
+                'note' => $data['note'],
                 'commentaire' => $data['commentaire'] ?? null,
             ]
         );

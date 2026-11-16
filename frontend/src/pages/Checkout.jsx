@@ -4,7 +4,7 @@
  * Les commandes sont stockées dans localStorage pour la notification admin.
  */
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import api from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import { useCartFav } from "../CartFavContext.jsx";
@@ -65,7 +65,6 @@ export default function Checkout() {
   const { lang, t } = useLanguage();
   const { user } = useAuth();
   const { refreshCart } = useCartFav();
-  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     nom:      user?.name?.split(" ")[1] ?? "",
@@ -76,9 +75,12 @@ export default function Checkout() {
   const [cartData,  setCartData]  = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [success,   setSuccess]   = useState(false);
-  const [orderNum,  setOrderNum]  = useState("");
   const [errors,    setErrors]    = useState({});
   const [loadedCart, setLoadedCart] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [card, setCard] = useState({ numero: "", nom: "", expiry: "", cvv: "" });
+  const [cardErrors, setCardErrors] = useState({});
+  const [order, setOrder] = useState(null);
 
   /* Charge le panier une seule fois */
   useState(() => {
@@ -111,45 +113,76 @@ export default function Checkout() {
     if (errors[field]) setErrors({ ...errors, [field]: undefined });
   };
 
+  const handleCardChange = (field) => (e) => {
+    let value = e.target.value;
+    if (field === "numero") {
+      value = value.replace(/[^0-9]/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
+    }
+    if (field === "expiry") {
+      value = value.replace(/[^0-9]/g, "").slice(0, 4);
+      if (value.length >= 3) value = value.slice(0, 2) + "/" + value.slice(2);
+    }
+    if (field === "cvv") {
+      value = value.replace(/[^0-9]/g, "").slice(0, 4);
+    }
+    setCard({ ...card, [field]: value });
+    if (cardErrors[field]) setCardErrors({ ...cardErrors, [field]: undefined });
+  };
+
+  const luhnCheck = (num) => {
+    const s = num.replace(/\s/g, "");
+    if (!/^\d{13,19}$/.test(s)) return false;
+    let sum = 0, parity = s.length % 2;
+    for (let i = 0; i < s.length; i++) {
+      let d = parseInt(s[i], 10);
+      if (i % 2 === parity) { d *= 2; if (d > 9) d -= 9; }
+      sum += d;
+    }
+    return sum % 10 === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length) { setErrors(errs); return; }
+    const cerrs = {};
+    if (paymentMethod === "card") {
+      const num = card.numero.replace(/\s/g, "");
+      if (!num) cerrs.numero = t("Numéro de carte requis", "Card number is required");
+      else if (!luhnCheck(num)) cerrs.numero = t("Numéro de carte invalide", "Invalid card number");
+      if (!card.nom.trim()) cerrs.nom = t("Nom sur la carte requis", "Name on card is required");
+      const exp = card.expiry.replace(/\D/g, "");
+      if (exp.length < 4) cerrs.expiry = t("Date d'expiration invalide", "Invalid expiry date");
+      else {
+        const mm = parseInt(exp.slice(0, 2), 10);
+        if (mm < 1 || mm > 12) cerrs.expiry = t("Mois invalide", "Invalid month");
+      }
+      if (!/^\d{3,4}$/.test(card.cvv)) cerrs.cvv = t("CVV invalide", "Invalid CVV");
+    }
+    if (Object.keys(errs).length || Object.keys(cerrs).length) {
+      setErrors(errs);
+      setCardErrors(cerrs);
+      return;
+    }
     if (items.length === 0) return;
 
     setLoading(true);
     try {
-      /* Génère un numéro de commande unique */
-      const num = "CMD-" + Date.now().toString(36).toUpperCase();
-      setOrderNum(num);
-
-      /* Sauvegarde la commande dans localStorage pour que l'admin la voie */
-      const existingOrders = JSON.parse(localStorage.getItem("sportshop_orders") || "[]");
-      const newOrder = {
-        id:         num,
-        date:       new Date().toISOString(),
-        client:     `${form.prenom} ${form.nom}`,
-        telephone:  form.telephone,
-        adresse:    form.adresse,
-        items:      items.map((i) => ({
-          nom:      i.produit.nom,
-          quantite: i.quantite,
-          prix:     i.prix,
-        })),
-        total:      Number(totalFinal),
-        livraison,
-        statut:     "en_attente",
-        read:       false,
+      const payload = {
+        prenom: form.prenom,
+        nom: form.nom,
+        telephone: form.telephone,
+        adresse: form.adresse,
+        mode_paiement: paymentMethod,
       };
-      localStorage.setItem(
-        "sportshop_orders",
-        JSON.stringify([newOrder, ...existingOrders])
-      );
-
-      /* Vide le panier côté API item par item */
-      for (const item of items) {
-        await api.delete(`/panier/items/${item.id}`);
+      if (paymentMethod === "card") {
+        payload.carte_numero = card.numero;
+        payload.carte_nom = card.nom;
+        payload.carte_expiry = card.expiry;
+        payload.carte_cvv = card.cvv;
       }
+      const res = await api.post("/commandes", payload);
+      const cmd = res.data.commande;
+      setOrder(cmd);
       refreshCart();
       setSuccess(true);
     } catch (err) {
@@ -160,16 +193,77 @@ export default function Checkout() {
   };
 
   /* ── Écran succès ── */
-  if (success) {
+  if (success && order) {
+    const fmt = (n) => Number(n).toLocaleString(lang === "fr" ? "fr-MA" : "en-US");
+    const methodeLabel = order.mode_paiement === "card"
+      ? t("Carte bancaire", "Credit card")
+      : t("Paiement à la livraison", "Cash on delivery");
     return (
       <div className="checkout-success">
         <div className="checkout-success__icon"><IconCheck /></div>
         <h1 className="checkout-success__title">{t("Commande confirmée !", "Order confirmed!")}</h1>
-        <p className="checkout-success__num">{t("Numéro de commande :", "Order number:")} <strong>{orderNum}</strong></p>
+        <p className="checkout-success__num">{t("Numéro de commande :", "Order number:")} <strong>{order.numero}</strong></p>
         <p className="checkout-success__msg">
           {t("Merci", "Thank you")} <strong>{form.prenom}</strong>{t(", votre commande a bien été enregistrée. Vous serez livré à l'adresse :", ", your order has been placed. It will be delivered to:")} <em>{form.adresse}</em>.
         </p>
+
+        {/* Reçu de paiement */}
+        <div className="checkout-receipt" id="payment-receipt">
+          <h2 className="checkout-receipt__title">{t("Reçu de paiement", "Payment receipt")}</h2>
+          <div className="checkout-receipt__row">
+            <span>{t("Date", "Date")}</span>
+            <span>{new Date(order.created_at).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")}</span>
+          </div>
+          <div className="checkout-receipt__row">
+            <span>{t("Client", "Customer")}</span>
+            <span>{order.prenom} {order.nom}</span>
+          </div>
+          <div className="checkout-receipt__row">
+            <span>{t("Méthode de paiement", "Payment method")}</span>
+            <span>{methodeLabel}</span>
+          </div>
+          <div className="checkout-receipt__row">
+            <span>{t("Statut du paiement", "Payment status")}</span>
+            <span>{order.statut_paiement === "paye" ? t("Payé", "Paid") : t("En attente", "Pending")}</span>
+          </div>
+          {order.transaction_id && (
+            <div className="checkout-receipt__row">
+              <span>{t("Transaction", "Transaction")}</span>
+              <span>{order.transaction_id}</span>
+            </div>
+          )}
+          <div className="checkout-receipt__divider" />
+          <div className="checkout-receipt__items">
+            {(order.items ?? []).map((it, idx) => (
+              <div key={idx} className="checkout-receipt__item">
+                <span>{it.nom} × {it.quantite}</span>
+                <span>{fmt(it.prix * it.quantite)} DH</span>
+              </div>
+            ))}
+          </div>
+          <div className="checkout-receipt__divider" />
+          <div className="checkout-receipt__row">
+            <span>{t("Sous-total", "Subtotal")}</span>
+            <span>{fmt(order.sous_total)} DH</span>
+          </div>
+          <div className="checkout-receipt__row">
+            <span>{t("Livraison", "Shipping")}</span>
+            <span>{Number(order.livraison) === 0 ? t("Gratuite", "Free") : `${fmt(order.livraison)} DH`}</span>
+          </div>
+          <div className="checkout-receipt__row checkout-receipt__row--total">
+            <span>{t("Total TTC", "Total")}</span>
+            <span>{fmt(order.total)} DH</span>
+          </div>
+        </div>
+
         <div className="checkout-success__actions">
+          <button
+            type="button"
+            className="checkout-btn checkout-btn--secondary"
+            onClick={() => window.print()}
+          >
+            {t("Imprimer le reçu", "Print receipt")}
+          </button>
           <Link to="/" className="checkout-btn checkout-btn--primary">
             {t("Continuer les achats", "Continue shopping")} <IconArrow />
           </Link>
@@ -268,6 +362,90 @@ export default function Checkout() {
                   onChange={handleChange("adresse")}
                 />
                 {errors.adresse && <span className="checkout-form__error">{errors.adresse}</span>}
+              </div>
+
+              {/* Méthode de paiement */}
+              <div className="checkout-payment">
+                <label className="checkout-form__label">{t("Méthode de paiement", "Payment method")}</label>
+                <div className="checkout-payment__options">
+                  <label className={`checkout-payment__option${paymentMethod === "cod" ? " active" : ""}`}>
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="cod"
+                      checked={paymentMethod === "cod"}
+                      onChange={() => setPaymentMethod("cod")}
+                    />
+                    <span>{t("Paiement à la livraison", "Cash on delivery")}</span>
+                  </label>
+                  <label className={`checkout-payment__option${paymentMethod === "card" ? " active" : ""}`}>
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="card"
+                      checked={paymentMethod === "card"}
+                      onChange={() => setPaymentMethod("card")}
+                    />
+                    <span>{t("Carte bancaire", "Credit card")}</span>
+                  </label>
+                </div>
+
+                {paymentMethod === "card" && (
+                  <div className="checkout-card-form">
+                    <div className={`checkout-form__field${cardErrors.numero ? " has-error" : ""}`}>
+                      <label className="checkout-form__label">{t("Numéro de carte", "Card number")}</label>
+                      <input
+                        className="checkout-form__input"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="1234 5678 9012 3456"
+                        value={card.numero}
+                        onChange={handleCardChange("numero")}
+                      />
+                      {cardErrors.numero && <span className="checkout-form__error">{cardErrors.numero}</span>}
+                    </div>
+                    <div className={`checkout-form__field${cardErrors.nom ? " has-error" : ""}`}>
+                      <label className="checkout-form__label">{t("Nom sur la carte", "Name on card")}</label>
+                      <input
+                        className="checkout-form__input"
+                        type="text"
+                        placeholder={t("ex : HAMZA BENALI", "e.g. HAMZA BENALI")}
+                        value={card.nom}
+                        onChange={handleCardChange("nom")}
+                      />
+                      {cardErrors.nom && <span className="checkout-form__error">{cardErrors.nom}</span>}
+                    </div>
+                    <div className="checkout-form__row">
+                      <div className={`checkout-form__field${cardErrors.expiry ? " has-error" : ""}`}>
+                        <label className="checkout-form__label">{t("Expiration", "Expiry")}</label>
+                        <input
+                          className="checkout-form__input"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="MM/AA"
+                          value={card.expiry}
+                          onChange={handleCardChange("expiry")}
+                        />
+                        {cardErrors.expiry && <span className="checkout-form__error">{cardErrors.expiry}</span>}
+                      </div>
+                      <div className={`checkout-form__field${cardErrors.cvv ? " has-error" : ""}`}>
+                        <label className="checkout-form__label">CVV</label>
+                        <input
+                          className="checkout-form__input"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="123"
+                          value={card.cvv}
+                          onChange={handleCardChange("cvv")}
+                        />
+                        {cardErrors.cvv && <span className="checkout-form__error">{cardErrors.cvv}</span>}
+                      </div>
+                    </div>
+                    <p className="checkout-form__hint">
+                      {t("Paiement simulé — aucune carte ne sera débitée.", "Simulated payment — no card will be charged.")}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <button

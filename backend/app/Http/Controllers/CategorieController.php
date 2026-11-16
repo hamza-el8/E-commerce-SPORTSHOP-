@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Categorie;
@@ -17,6 +18,7 @@ class CategorieController extends Controller
             'nom' => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
+
         return response()->json(Categorie::create($data), 201);
     }
 
@@ -32,12 +34,14 @@ class CategorieController extends Controller
             'description' => 'nullable|string',
         ]);
         $categorie->update($data);
+
         return $categorie;
     }
 
     public function destroy(Categorie $categorie)
     {
         $categorie->delete();
+
         return response()->json(['message' => 'Catégorie supprimée']);
     }
 }

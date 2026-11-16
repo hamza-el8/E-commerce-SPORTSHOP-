@@ -11,11 +11,11 @@ return new class extends Migration
         Schema::create('avis', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')
-                  ->constrained('users')
-                  ->cascadeOnDelete();
+                ->constrained('users')
+                ->cascadeOnDelete();
             $table->foreignId('produit_id')
-                  ->constrained('produits')
-                  ->cascadeOnDelete();
+                ->constrained('produits')
+                ->cascadeOnDelete();
             $table->tinyInteger('note')->unsigned(); // 1 à 5
             $table->text('commentaire')->nullable();
             $table->timestamps();

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Panier;
@@ -17,6 +18,7 @@ class PanierController extends Controller
     {
         $panier->load('items.produit');
         $total = $panier->items->sum(fn ($i) => $i->prix * $i->quantite);
+
         return ['panier' => $panier, 'total' => round($total, 2)];
     }
 
@@ -68,6 +70,7 @@ class PanierController extends Controller
         }
 
         $item->update($data);
+
         return $this->payload($panier);
     }
 
@@ -77,6 +80,7 @@ class PanierController extends Controller
         abort_if($item->panier_id !== $panier->id, 403);
 
         $item->delete();
+
         return $this->payload($panier);
     }
 }

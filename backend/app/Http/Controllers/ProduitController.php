@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Produit;
@@ -11,7 +12,7 @@ class ProduitController extends Controller
         $query = Produit::with('categorie');
 
         if ($request->filled('search')) {
-            $query->where('nom', 'like', '%' . $request->search . '%');
+            $query->where('nom', 'like', '%'.$request->search.'%');
         }
         if ($request->filled('categorie_id')) {
             $query->where('categorie_id', $request->categorie_id);
@@ -37,6 +38,7 @@ class ProduitController extends Controller
             'stock' => 'required|integer|min:0',
             'image' => 'nullable|string|max:500',
         ]);
+
         return response()->json(Produit::create($data)->load('categorie'), 201);
     }
 
@@ -57,12 +59,14 @@ class ProduitController extends Controller
             'image' => 'nullable|string|max:500',
         ]);
         $produit->update($data);
+
         return $produit->load('categorie');
     }
 
     public function destroy(Produit $produit)
     {
         $produit->delete();
+
         return response()->json(['message' => 'Produit supprimé']);
     }
 }
