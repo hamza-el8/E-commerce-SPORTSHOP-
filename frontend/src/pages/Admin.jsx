@@ -37,7 +37,13 @@ class AdminErrorBoundary extends Component {
   }
 }
 
-const emptyProduit = { categorie_id: "", nom: "", description: "", prix: "", prix_promo: "", stock: "", image: "" };
+const ALL_SIZES    = ["XS", "S", "M", "L", "XL", "XXL"];
+const emptyProduit = {
+  categorie_id: "", nom: "", description: "",
+  prix: "", prix_promo: "", stock: "",
+  images: [""],   /* tableau dynamique — au moins 1 slot vide */
+  tailles: [],
+};
 
 /* ── Icônes SVG ── */
 const IconEdit = () => (
@@ -388,8 +394,17 @@ export default function Admin() {
     e.preventDefault();
     setSaving(true);
     try {
-      if (editId) await api.put(`/produits/${editId}`, form);
-      else        await api.post("/produits", form);
+      /* Mappe le tableau images[] → image, image2, image3 pour l'API */
+      const { images, ...rest } = form;
+      const payload = {
+        ...rest,
+        image:  images[0] ?? "",
+        image2: images[1] ?? "",
+        image3: images[2] ?? "",
+        tailles: form.tailles,
+      };
+      if (editId) await api.put(`/produits/${editId}`, payload);
+      else        await api.post("/produits", payload);
       setForm(emptyProduit); setEditId(null); setError(""); loadAll();
     } catch (err) {
       setError(JSON.stringify(err.response?.data?.errors || err.response?.data));
@@ -399,9 +414,24 @@ export default function Admin() {
   const editProduit = (p) => {
     setActiveTab("produits");
     setEditId(p.id);
-    setForm({ categorie_id: p.categorie_id ?? "", nom: p.nom,
-              description: p.description ?? "", prix: p.prix,
-              prix_promo: p.prix_promo ?? "", stock: p.stock, image: p.image ?? "" });
+
+    /* Reconstitue le tableau images depuis image / image2 / image3 */
+    const imgs = [p.image ?? "", p.image2 ?? "", p.image3 ?? ""].filter((v, i) => i === 0 || v);
+    /* Garantit au moins un slot */
+    const images = imgs.length ? imgs : [""];
+
+    setForm({
+      categorie_id: p.categorie_id ?? "",
+      nom:          p.nom,
+      description:  p.description ?? "",
+      prix:         p.prix,
+      prix_promo:   p.prix_promo ?? "",
+      stock:        p.stock,
+      images,
+      tailles: Array.isArray(p.tailles)
+        ? p.tailles
+        : (p.tailles ? p.tailles.split(",").map((s) => s.trim()) : []),
+    });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -654,25 +684,109 @@ export default function Admin() {
                       value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} required />
                   </div>
                 </div>
-
-                {/* URL image */}
-                <div className="admin-form__field admin-form__field--grow">
-                  <label className="admin-form__label">{t("URL de l'image", "Image URL")}</label>
-                  <div className="admin-form__input-wrap">
-                    <input className="admin-form__input" placeholder="https://…"
-                      value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} />
-                  </div>
-                </div>
               </div>
 
-              {/* Preview image */}
-              {form.image && (
-                <div className="admin-img-preview">
-                  <img src={form.image} alt={t("Aperçu", "Preview")}
-                    onError={(e) => { e.target.style.display = "none"; }} />
-                  <span>{t("Aperçu de l'image", "Image preview")}</span>
+              {/* ── Tailles disponibles ── */}
+              <div className="admin-form__field">
+                <label className="admin-form__label">{t("Tailles disponibles", "Available sizes")}</label>
+                <div className="admin-sizes-picker">
+                  {ALL_SIZES.map((size) => {
+                    const active = form.tailles.includes(size);
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        className={`admin-size-btn${active ? " active" : ""}`}
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            tailles: active
+                              ? prev.tailles.filter((s) => s !== size)
+                              : [...prev.tailles, size],
+                          }))
+                        }
+                        aria-pressed={active}
+                      >
+                        {size}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+                {form.tailles.length > 0 && (
+                  <p className="admin-sizes-hint">
+                    {t("Sélectionnées", "Selected")} : <strong>{form.tailles.join(", ")}</strong>
+                  </p>
+                )}
+              </div>
+
+              {/* ── Images dynamiques ── */}
+              <div className="admin-form__field">
+                <label className="admin-form__label">{t("Images du produit", "Product images")}</label>
+                <div className="admin-dyn-images">
+                  {form.images.map((url, idx) => (
+                    <div key={idx} className="admin-dyn-slot">
+
+                      {/* Numéro + suppression */}
+                      <div className="admin-dyn-slot__header">
+                        <span className={`admin-image-slot__badge${idx > 0 ? " admin-image-slot__badge--secondary" : ""}`}>
+                          {idx === 0 ? t("Principale", "Main") : idx + 1}
+                        </span>
+                        {form.images.length > 1 && (
+                          <button
+                            type="button"
+                            className="admin-dyn-slot__remove"
+                            onClick={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                images: prev.images.filter((_, i) => i !== idx),
+                              }))
+                            }
+                            aria-label={t("Supprimer cette image", "Remove image")}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Input URL */}
+                      <div className="admin-form__input-wrap">
+                        <input
+                          className="admin-form__input"
+                          placeholder={`https://… (image ${idx + 1})`}
+                          value={url}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setForm((prev) => {
+                              const imgs = [...prev.images];
+                              imgs[idx] = val;
+                              return { ...prev, images: imgs };
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Preview */}
+                      {url && (
+                        <div className="admin-dyn-slot__preview">
+                          <img src={url} alt={`img ${idx + 1}`}
+                            onError={(e) => { e.target.style.display = "none"; }} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bouton ajouter une image */}
+                <button
+                  type="button"
+                  className="admin-dyn-add-btn"
+                  onClick={() =>
+                    setForm((prev) => ({ ...prev, images: [...prev.images, ""] }))
+                  }
+                >
+                  <span>+</span> {t("Ajouter une image", "Add an image")}
+                </button>
+              </div>
 
               <div className="admin-form__actions">
                 <button type="submit" className="admin-btn-primary" disabled={saving}>

@@ -1,7 +1,6 @@
 /**
  * ProductDetail — SportShop
- * Layout : image grande à gauche + infos/actions à droite (style Nike/Shein)
- * Logique API inchangée.
+ * Galerie thumbnails à gauche (style Shein) + infos à droite.
  */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -81,15 +80,16 @@ const IconStar = ({ filled }) => (
 function SkeletonDetail() {
   return (
     <div className="detail-page">
-      <div className="skeleton detail-skeleton__img" />
-      <div className="detail-info" style={{ gap: "var(--space-5)" }}>
-        <div className="skeleton" style={{ height: 14, width: "30%" }} />
-        <div className="skeleton" style={{ height: 36, width: "80%" }} />
-        <div className="skeleton" style={{ height: 36, width: "80%" }} />
-        <div className="skeleton" style={{ height: 28, width: "25%" }} />
-        <div className="skeleton" style={{ height: 16, width: "40%" }} />
-        <div className="skeleton" style={{ height: 52, borderRadius: "var(--radius-full)" }} />
-        <div className="skeleton" style={{ height: 52, borderRadius: "var(--radius-full)" }} />
+      <div className="detail-layout">
+        <div className="skeleton detail-skeleton__img" style={{ height: 520 }} />
+        <div className="detail-info" style={{ gap: "var(--space-5)" }}>
+          <div className="skeleton" style={{ height: 14, width: "30%" }} />
+          <div className="skeleton" style={{ height: 36, width: "80%" }} />
+          <div className="skeleton" style={{ height: 28, width: "25%" }} />
+          <div className="skeleton" style={{ height: 16, width: "40%" }} />
+          <div className="skeleton" style={{ height: 52, borderRadius: "var(--radius-full)" }} />
+          <div className="skeleton" style={{ height: 52, borderRadius: "var(--radius-full)" }} />
+        </div>
       </div>
     </div>
   );
@@ -101,17 +101,25 @@ export default function ProductDetail() {
   const { user }     = useAuth();
   const navigate     = useNavigate();
 
-  const [produit,  setProduit]  = useState(null);
-  const [quantite, setQuantite] = useState(1);
-  const [isFav,    setIsFav]    = useState(false);
-  const [adding,   setAdding]   = useState(false);
-  const [added,    setAdded]    = useState(false);
-  const [rating,   setRating]   = useState({ moyenne: null, total: 0 });
+  const SIZES_VETEMENTS  = ["XS", "S", "M", "L", "XL", "XXL"];
+  const SIZES_CHAUSSURES = ["38", "39", "40", "41", "42", "43", "44"];
+
+  const [produit,      setProduit]     = useState(null);
+  const [quantite,     setQuantite]    = useState(1);
+  const [isFav,        setIsFav]       = useState(false);
+  const [adding,       setAdding]      = useState(false);
+  const [added,        setAdded]       = useState(false);
+  const [rating,       setRating]      = useState({ moyenne: null, total: 0 });
+  const [selectedSize, setSelectedSize] = useState(null);
+  const [activeImg,    setActiveImg]   = useState(0);   /* index image active */
+
   const { incCart, incFav, decFav } = useCartFav();
 
   useEffect(() => {
-    api.get(`/produits/${id}`).then((res) => setProduit(res.data));
-    // Charge les avis pour afficher la moyenne dans l'en-tête produit
+    api.get(`/produits/${id}`).then((res) => {
+      setProduit(res.data);
+      setActiveImg(0); /* reset à chaque changement de produit */
+    });
     api.get(`/produits/${id}/avis`).then((res) => {
       const list = res.data ?? [];
       const total = list.length;
@@ -157,8 +165,21 @@ export default function ProductDetail() {
 
   if (!produit) return <SkeletonDetail />;
 
-  const rupture    = produit.stock === 0;
-  const stockBas   = produit.stock > 0 && produit.stock <= 5;
+  const rupture  = produit.stock === 0;
+  const stockBas = produit.stock > 0 && produit.stock <= 5;
+
+  /* Tailles selon la catégorie */
+  const catNom = produit.categorie?.nom?.toLowerCase() ?? "";
+  const isChaussures = catNom.includes("chaussure") || catNom.includes("shoe");
+  const SIZES = isChaussures ? SIZES_CHAUSSURES : SIZES_VETEMENTS;
+
+  /* Construit la liste des images dispo (filtre les vides) */
+  const allImages = [produit.image, produit.image2, produit.image3]
+    .filter(Boolean)
+    .filter((u) => u.trim() !== "");
+  if (allImages.length === 0) allImages.push("https://placehold.co/600x700/f5f5f5/767676?text=SportShop");
+
+  const mainImg = allImages[activeImg] ?? allImages[0];
 
   return (
     <div className="detail-page">
@@ -181,14 +202,36 @@ export default function ProductDetail() {
       {/* ── Layout principal ── */}
       <div className="detail-layout">
 
-        {/* ════ Colonne image ════ */}
+        {/* ════ Colonne galerie style Shein ════ */}
         <div className="detail-gallery">
+
+          {/* Thumbnails verticaux à gauche — toujours visibles */}
+          <div className="detail-gallery__thumbs">
+            {allImages.map((src, i) => (
+              <button
+                key={i}
+                className={`detail-gallery__thumb${activeImg === i ? " active" : ""}`}
+                onClick={() => setActiveImg(i)}
+                aria-label={`Image ${i + 1}`}
+                type="button"
+              >
+                <img src={src} alt={`${produit.nom} ${i + 1}`}
+                  onError={(e) => { e.target.src = "https://placehold.co/80x80/f5f5f5/767676?text=?"; }} />
+              </button>
+            ))}
+          </div>
+
+          {/* Image principale */}
           <div className="detail-gallery__main">
             <img
-              src={produit.image || "https://placehold.co/600x700/f5f5f5/767676?text=SportShop"}
+              key={mainImg}
+              src={mainImg}
               alt={produit.nom}
+              className="detail-gallery__main-img"
             />
-            {rupture && <div className="detail-gallery__rupture">{t("Rupture de stock", "Out of stock")}</div>}
+            {rupture && (
+              <div className="detail-gallery__rupture">{t("Rupture de stock", "Out of stock")}</div>
+            )}
           </div>
         </div>
 
@@ -203,7 +246,7 @@ export default function ProductDetail() {
           {/* Titre */}
           <h1 className="detail-title">{produit.nom}</h1>
 
-          {/* Étoiles — données réelles */}
+          {/* Étoiles */}
           <div className="detail-rating">
             {[1, 2, 3, 4, 5].map((s) => (
               <IconStar key={s} filled={s <= Math.round(rating.moyenne ?? 0)} />
@@ -221,9 +264,27 @@ export default function ProductDetail() {
 
           {/* Prix */}
           <div className="detail-price-wrap">
-            <span className="detail-price">{Number(produit.prix).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")} DH</span>
+            {produit.prix_promo ? (
+              <>
+                <span className="detail-price detail-price--promo">
+                  {Number(produit.prix_promo).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")} DH
+                </span>
+                <span className="detail-price detail-price--original">
+                  {Number(produit.prix).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")} DH
+                </span>
+                <span className="detail-price__discount-badge">
+                  -{Math.round((1 - produit.prix_promo / produit.prix) * 100)}%
+                </span>
+              </>
+            ) : (
+              <span className="detail-price">
+                {Number(produit.prix).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")} DH
+              </span>
+            )}
             {!rupture && (
-              <span className="detail-price__tax">{t("TTC · Livraison calculée au panier", "Tax included · Shipping calculated at checkout")}</span>
+              <span className="detail-price__tax">
+                {t("TTC · Livraison calculée au panier", "Tax included · Shipping calculated at checkout")}
+              </span>
             )}
           </div>
 
@@ -242,6 +303,29 @@ export default function ProductDetail() {
               : t(`En stock (${produit.stock} disponibles)`, `In stock (${produit.stock} available)`)}
           </div>
 
+          {/* ── Sélecteur taille ── */}
+          <div className="detail-sizes">
+            <div className="detail-sizes__header">
+              <span className="detail-sizes__label">{t("Taille", "Size")}</span>
+              <a href="#" className="detail-sizes__guide" onClick={(e) => e.preventDefault()}>
+                {t("Guide des tailles", "Size guide")} →
+              </a>
+            </div>
+            <div className="detail-sizes__options">
+              {SIZES.map((size) => (
+                <button
+                  key={size}
+                  className={`detail-size-btn${selectedSize === size ? " selected" : ""}`}
+                  onClick={() => setSelectedSize(size)}
+                  type="button"
+                  aria-pressed={selectedSize === size}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Séparateur */}
           <div className="detail-divider" />
 
@@ -251,21 +335,16 @@ export default function ProductDetail() {
               <div className="detail-qty-row">
                 <label className="detail-qty-label">{t("Quantité", "Quantity")}</label>
                 <div className="detail-qty-ctrl">
-                  <button
-                    className="detail-qty-btn"
+                  <button className="detail-qty-btn"
                     onClick={() => setQuantite((q) => Math.max(1, q - 1))}
-                    disabled={quantite <= 1}
-                  >−</button>
+                    disabled={quantite <= 1}>−</button>
                   <span className="detail-qty-val">{quantite}</span>
-                  <button
-                    className="detail-qty-btn"
+                  <button className="detail-qty-btn"
                     onClick={() => setQuantite((q) => Math.min(produit.stock, q + 1))}
-                    disabled={quantite >= produit.stock}
-                  >+</button>
+                    disabled={quantite >= produit.stock}>+</button>
                 </div>
               </div>
 
-              {/* Bouton Ajouter au panier */}
               <button
                 className={`detail-btn-cart${added ? " added" : ""}`}
                 onClick={addToCart}
@@ -282,7 +361,7 @@ export default function ProductDetail() {
             </>
           )}
 
-          {/* Bouton Favori */}
+          {/* Favori */}
           <button
             className={`detail-btn-fav${isFav ? " active" : ""}`}
             onClick={toggleFav}
