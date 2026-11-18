@@ -37,7 +37,8 @@ class AdminErrorBoundary extends Component {
   }
 }
 
-const ALL_SIZES    = ["XS", "S", "M", "L", "XL", "XXL"];
+const SIZES_VETEMENTS  = ["XS", "S", "M", "L", "XL", "XXL"];
+const SIZES_CHAUSSURES = ["38", "39", "40", "41", "42", "43", "44"];
 const emptyProduit = {
   categorie_id: "", nom: "", description: "",
   prix: "", prix_promo: "", stock: "",
@@ -611,7 +612,7 @@ export default function Admin() {
                     <select
                       className="admin-form__input"
                       value={form.categorie_id}
-                      onChange={(e) => setForm({ ...form, categorie_id: e.target.value })}
+                      onChange={(e) => setForm({ ...form, categorie_id: e.target.value, tailles: [] })}
                       required
                     >
                       <option value="">{t("Sélectionner…", "Select…")}</option>
@@ -687,37 +688,62 @@ export default function Admin() {
               </div>
 
               {/* ── Tailles disponibles ── */}
-              <div className="admin-form__field">
-                <label className="admin-form__label">{t("Tailles disponibles", "Available sizes")}</label>
-                <div className="admin-sizes-picker">
-                  {ALL_SIZES.map((size) => {
-                    const active = form.tailles.includes(size);
-                    return (
-                      <button
-                        key={size}
-                        type="button"
-                        className={`admin-size-btn${active ? " active" : ""}`}
-                        onClick={() =>
-                          setForm((prev) => ({
-                            ...prev,
-                            tailles: active
-                              ? prev.tailles.filter((s) => s !== size)
-                              : [...prev.tailles, size],
-                          }))
-                        }
-                        aria-pressed={active}
-                      >
-                        {size}
-                      </button>
-                    );
-                  })}
-                </div>
-                {form.tailles.length > 0 && (
-                  <p className="admin-sizes-hint">
-                    {t("Sélectionnées", "Selected")} : <strong>{form.tailles.join(", ")}</strong>
-                  </p>
-                )}
-              </div>
+              {(() => {
+                const catObj       = categories.find((c) => String(c.id) === String(form.categorie_id));
+                const catNom       = catObj?.nom?.toLowerCase() ?? "";
+                const isChaussures = catNom.includes("chaussure") || catNom.includes("shoe");
+                const SIZES        = isChaussures ? SIZES_CHAUSSURES : SIZES_VETEMENTS;
+
+                return (
+                  <div className="admin-form__field">
+                    <label className="admin-form__label">
+                      {t("Tailles disponibles", "Available sizes")}
+                      {form.categorie_id && (
+                        <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: "var(--color-accent)" }}>
+                          {isChaussures ? "— pointures (38–44)" : "— vêtements (XS–XXL)"}
+                        </span>
+                      )}
+                    </label>
+
+                    {/* Sélectionner une catégorie d'abord */}
+                    {!form.categorie_id ? (
+                      <p style={{ fontSize: 13, color: "var(--color-gray-500)", fontStyle: "italic" }}>
+                        {t("Sélectionnez d'abord une catégorie.", "Select a category first.")}
+                      </p>
+                    ) : (
+                      <div className="admin-sizes-picker">
+                        {SIZES.map((size) => {
+                          const active = form.tailles.includes(size);
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              className={`admin-size-btn${active ? " active" : ""}`}
+                              onClick={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  tailles: active
+                                    ? prev.tailles.filter((s) => s !== size)
+                                    : [...prev.tailles, size],
+                                }))
+                              }
+                              aria-pressed={active}
+                            >
+                              {size}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {form.tailles.length > 0 && (
+                      <p className="admin-sizes-hint">
+                        {t("Sélectionnées", "Selected")} : <strong>{form.tailles.join(", ")}</strong>
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ── Images dynamiques ── */}
               <div className="admin-form__field">

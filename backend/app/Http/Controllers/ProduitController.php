@@ -37,6 +37,8 @@ class ProduitController extends Controller
             'prix_promo' => 'nullable|numeric|min:0|lt:prix',
             'stock' => 'required|integer|min:0',
             'image' => 'nullable|string|max:500',
+            'image2' => 'nullable|string|max:500',
+            'image3' => 'nullable|string|max:500',
         ]);
 
         return response()->json(Produit::create($data)->load('categorie'), 201);
@@ -57,6 +59,8 @@ class ProduitController extends Controller
             'prix_promo' => 'nullable|numeric|min:0|lt:prix',
             'stock' => 'required|integer|min:0',
             'image' => 'nullable|string|max:500',
+            'image2' => 'nullable|string|max:500',
+            'image3' => 'nullable|string|max:500',
         ]);
         $produit->update($data);
 

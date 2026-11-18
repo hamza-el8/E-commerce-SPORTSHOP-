@@ -3,7 +3,7 @@
  * Page principale : Hero banner, filtres, grille produits, footer.
  * Logique métier inchangée (Axios, useAuth, toggleFav, addToCart).
  * Ajouts UI : skeleton loaders, toast notifications, état vide, footer.
- */
+ */ 
 import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api";
@@ -54,7 +54,8 @@ const IconArrowRight = () => (
 
 const IconCart = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+       stroke="cur
+       rentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
        width="14" height="14">
     <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
     <line x1="3" y1="6" x2="21" y2="6"/>
@@ -137,9 +138,9 @@ function CategoryBar({ categories, activeId, onSelect }) {
       </button>
 
       {/* Une icône par catégorie */}
-      {categories.map((cat) => (
+      {categories.map((cat) => (               
         <button
-          key={cat.id}
+          key={cat.id}                         
           className={`cat-bar__item${activeId === String(cat.id) ? " active" : ""}`}
           onClick={() => onSelect(String(cat.id))}
           aria-pressed={activeId === String(cat.id)}

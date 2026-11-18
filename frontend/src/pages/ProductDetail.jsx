@@ -111,14 +111,20 @@ export default function ProductDetail() {
   const [added,        setAdded]       = useState(false);
   const [rating,       setRating]      = useState({ moyenne: null, total: 0 });
   const [selectedSize, setSelectedSize] = useState(null);
-  const [activeImg,    setActiveImg]   = useState(0);   /* index image active */
+  const [activeImg,    setActiveImg]   = useState(0);
+  const [similaires,   setSimilaires]  = useState([]);
 
   const { incCart, incFav, decFav } = useCartFav();
 
   useEffect(() => {
     api.get(`/produits/${id}`).then((res) => {
-      setProduit(res.data);
-      setActiveImg(0); /* reset à chaque changement de produit */
+      const p = res.data;
+      setProduit(p);
+      setActiveImg(0);
+      /* Charge les produits similaires (même catégorie, hors produit courant) */
+      api.get("/produits", { params: { categorie_id: p.categorie_id } })
+        .then((r) => setSimilaires(r.data.filter((x) => String(x.id) !== String(id)).slice(0, 6)))
+        .catch(() => setSimilaires([]));
     });
     api.get(`/produits/${id}/avis`).then((res) => {
       const list = res.data ?? [];
@@ -400,6 +406,60 @@ export default function ProductDetail() {
 
       {/* ── Avis clients ── */}
       <ProductReviews produitId={id} />
+
+      {/* ── Articles similaires ── */}
+      {similaires.length > 0 && (
+        <section className="similaires-section">
+          <div className="similaires-header">
+            <h2 className="similaires-title">
+              {t("Articles Également Consultés", "You May Also Like")}
+            </h2>
+          </div>
+          <div className="similaires-grid">
+            {similaires.map((p) => {
+              const promoPercent = p.prix_promo
+                ? Math.round((1 - p.prix_promo / p.prix) * 100)
+                : null;
+              return (
+                <Link
+                  key={p.id}
+                  to={`/produit/${p.id}`}
+                  className="similaires-card"
+                  onClick={() => { setActiveImg(0); setSelectedSize(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                >
+                  <div className="similaires-card__img-wrap">
+                    <img
+                      src={p.image || "https://placehold.co/300x360/f5f5f5/767676?text=Sport"}
+                      alt={p.nom}
+                      loading="lazy"
+                    />
+                    {promoPercent && (
+                      <span className="similaires-card__badge">-{promoPercent}%</span>
+                    )}
+                  </div>
+                  <div className="similaires-card__body">
+                    <p className="similaires-card__name">{p.nom}</p>
+                    <div className="similaires-card__price">
+                      {p.prix_promo ? (
+                        <>
+                          <span className="similaires-card__price--promo">
+                            {Number(p.prix_promo).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")} DH
+                          </span>
+                          <span className="similaires-card__price--old">
+                            {Number(p.prix).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")} DH
+                          </span>
+                        </>
+                      ) : (
+                        <span>{Number(p.prix).toLocaleString(lang === "fr" ? "fr-MA" : "en-US")} DH</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
     </div>
   );
